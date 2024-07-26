@@ -169,7 +169,6 @@ def discriminate(z: Tensor, pos_neg_edge_index: Tensor, pos_edge_index: Tensor, 
 
         if dist_1< dist_2:
             logits[i] = torch.tensor([1, 0, 0], dtype=torch.float32, device=device)  # Positive edge
-
         else:
             logits[i] = torch.tensor([0, 1, 0], dtype=torch.float32, device=device)  # Negative edge
 
