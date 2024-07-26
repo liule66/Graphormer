@@ -13,7 +13,7 @@ elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
 else:
     device = torch.device('cpu')
 # Define the list of datasets
-datasets = ['Epinions.txt', 'Slashdot.txt', 'soc-sign-bitcoinalpha.csv', 'soc-sign-bitcoinotc.csv',
+datasets = ['Epinions.txt', 'Slashdot.txt',
           'WikiElec.txt', 'WikiRfa.txt']
 def load_data(file_path):
     if file_path.endswith('.txt'):
@@ -67,16 +67,16 @@ train_neg_edge_index, test_neg_edge_index = model.split_edges(neg_edge_index)
 def discriminate(z: Tensor, pos_neg_edge_index: Tensor, pos_edge_index: Tensor, neg_edge_index: Tensor) -> Tensor:
     """Given node embeddings :obj:z, classifies the link relation
     between node pairs :obj:edge_index to be either positive,
-    negative or non-existent.
+    negative.
 
     Args:
         x (torch.Tensor): The input node features.
-        edge_index (torch.Tensor): The edge indices.
+        pos_neg_edge_index (torch.Tensor): The edge indices.
     """
     k = 23
     device = z.device  # Ensure device is set to the same as z
     #data_dir = "/home/zyji/PycharmProjects/Graphormr/Dist"
-    data_dir = "Dist"
+    data_dir = f"Dist\{name}/"
     os.makedirs(data_dir, exist_ok=True)
 
     # Define file paths
@@ -89,12 +89,11 @@ def discriminate(z: Tensor, pos_neg_edge_index: Tensor, pos_edge_index: Tensor, 
     z = z.to(device)
     pos_edge_index = pos_edge_index.to(device)
     neg_edge_index = neg_edge_index.to(device)
-    num_nodes = z.size(0)
 
     # Check if files exist and load data
     if os.path.exists(k_pos_neighbors_path) and os.path.exists(k_neg_neighbors_path) and os.path.exists(k_avg_pos_distance_path) and os.path.exists(k_avg_neg_distance_path):
-        k_pos_neighbors_tensor = [t.to(device) for t in torch.load(k_pos_neighbors_path)]
-        k_neg_neighbors_tensor = [t.to(device) for t in torch.load(k_neg_neighbors_path)]
+        # k_pos_neighbors_tensor = [t.to(device) for t in torch.load(k_pos_neighbors_path)]
+        # k_neg_neighbors_tensor = [t.to(device) for t in torch.load(k_neg_neighbors_path)]
         k_avg_pos_distance = torch.load(k_avg_pos_distance_path).to(device)
         k_avg_neg_distance = torch.load(k_avg_neg_distance_path).to(device)
 
@@ -108,11 +107,11 @@ def discriminate(z: Tensor, pos_neg_edge_index: Tensor, pos_edge_index: Tensor, 
 
         # Find neighbors from pos_edge_index and neg_edge_index
         for edge in pos_edge_index.t():
-            pos_neighbors[edge[0]].append(edge[1].item())
+            # pos_neighbors[edge[0]].append(edge[1].item())
             pos_neighbors[edge[1]].append(edge[0].item())
 
         for edge in neg_edge_index.t():
-            neg_neighbors[edge[0]].append(edge[1].item())
+            # neg_neighbors[edge[0]].append(edge[1].item())
             neg_neighbors[edge[1]].append(edge[0].item())
 
         # Supplement with diffusion matrix if necessary
@@ -146,7 +145,7 @@ def discriminate(z: Tensor, pos_neg_edge_index: Tensor, pos_edge_index: Tensor, 
                     k_pos_neighbors_tensor[i] = pos_neighbors_tensor[i]
                     k_avg_pos_distance[i] = pos_distances.median().item()
             else:
-                k_avg_pos_distance[i] = float('inf')
+                k_avg_pos_distance[i] = float('0')
 
             if len(neg_neighbors_tensor[i]) > 0:
                 neg_distances = torch.norm(z[i] - z[neg_neighbors_tensor[i]], dim=1)

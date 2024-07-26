@@ -6,7 +6,7 @@ from torch_geometric.nn import SignedGCN
 import torch
 import os
 # Define the list of datasets
-datasets = ['Epinions.txt', 'Slashdot.txt', 'soc-sign-bitcoinalpha.csv', 'soc-sign-bitcoinotc.csv',
+datasets = ['Epinions.txt', 'Slashdot.txt',
           'WikiElec.txt', 'WikiRfa.txt']
 
 
