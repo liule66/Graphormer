@@ -76,7 +76,7 @@ def discriminate(z: Tensor, pos_neg_edge_index: Tensor, pos_edge_index: Tensor, 
     k = 23
     device = z.device  # Ensure device is set to the same as z
     #data_dir = "/home/zyji/PycharmProjects/Graphormr/Dist"
-    data_dir = f"Dist\{name}/"
+    data_dir = f"Dist/{name}/"
     os.makedirs(data_dir, exist_ok=True)
 
     # Define file paths
