@@ -206,7 +206,7 @@ def explainer(pos_neg_edge_index: Tensor, is_positive: bool) -> float:
     k_neg_neighbors_tensor = torch.load("Dist/k_neg_neighbors_tensor.pt")
 
     # Predict the edge types
-    predictions = discriminate(z, pos_neg_edge_index, pos_edge_index, neg_edge_index)[:, :2].max(dim=1)[1]
+    predictions = discriminate(z, pos_neg_edge_index, train_pos_edge_index, train_neg_edge_index)[:, :2].max(dim=1)[1]
 
     for i, edge in enumerate(pos_neg_edge_index.t()):
         node = edge[1].item()
