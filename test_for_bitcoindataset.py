@@ -6,6 +6,7 @@ from torch_geometric.nn import SignedGCN
 import torch
 from torch import Tensor
 import os
+import dataset_loader
 if torch.cuda.is_available():
     device = torch.device('cuda')
 elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
@@ -13,56 +14,28 @@ elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
 else:
     device = torch.device('cpu')
 # Define the list of datasets
-datasets = ['Epinions.txt', 'Slashdot.txt', 'soc-sign-bitcoinalpha.csv', 'soc-sign-bitcoinotc.csv',
-          'WikiElec.txt', 'WikiRfa.txt']
-def load_data(file_path):
-    if file_path.endswith('.txt'):
-        data = pd.read_csv(file_path, sep='\t', header=None)
-    elif file_path.endswith('.csv'):
-        data = pd.read_csv(file_path)
-    else:
-        raise ValueError("Unsupported file format")
-    return data
+datasets = ['soc-sign-bitcoinalpha.csv', 'soc-sign-bitcoinotc.csv']
 
-def process_edges(data):
-    edge_index = torch.tensor(data.iloc[:, :2].values.T, dtype=torch.long)
-    edge_attr = torch.tensor(data.iloc[:, 2].values, dtype=torch.float)
-    return edge_index, edge_attr
-
-def select_dataset(datasets):
-    print("Select a dataset from the following list:")
-    for i, dataset in enumerate(datasets):
-        print(f"{i + 1}. {dataset}") 
-
-    choice = int(input("Enter the number of the dataset you want to use: ")) - 1
-    if 0 <= choice < len(datasets):
-        return datasets[choice]
-    else:
-        print("Invalid choice. Using the first dataset by default.")
-        return datasets[0]
-
-script_dir = osp.abspath(osp.dirname(__file__))
-dataset_dir = osp.join(script_dir, 'dataset')
-
-name = select_dataset(datasets)
-path = osp.join(dataset_dir, name)
-data = load_data(path)
-edge_index, edge_attr = process_edges(data)
-
+name = 'BitcoinOTC-1'
+path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', name)
+dataset = dataset_loader.BitcoinOTC(path, edge_window_size=1)
+print(dataset[1])
+# dataset = BitcoinOTC(root='Data/BitcoinOTC')
 # Generate dataset.
 pos_edge_indices, neg_edge_indices = [], []
-pos_edge_indices.append(edge_index[:, edge_attr > 0])
-neg_edge_indices.append(edge_index[:, edge_attr < 0])
+for data in dataset:
+    pos_edge_indices.append(data.edge_index[:, data.edge_attr > 0])
+    neg_edge_indices.append(data.edge_index[:, data.edge_attr < 0])
 
 pos_edge_index = torch.cat(pos_edge_indices, dim=1).to(device)
 neg_edge_index = torch.cat(neg_edge_indices, dim=1).to(device)
 
 # Build and train model.
 model = SignedGCN(64, 64, num_layers=2, lamb=5).to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
-
 train_pos_edge_index, test_pos_edge_index = model.split_edges(pos_edge_index)
 train_neg_edge_index, test_neg_edge_index = model.split_edges(neg_edge_index)
+
+x = model.create_spectral_features(train_pos_edge_index, train_neg_edge_index)
 
 def discriminate(z: Tensor, pos_neg_edge_index: Tensor, pos_edge_index: Tensor, neg_edge_index: Tensor) -> Tensor:
     """Given node embeddings :obj:z, classifies the link relation

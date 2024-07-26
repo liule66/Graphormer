@@ -1,7 +1,10 @@
+import os
 import os.path as osp
 import torch
+from sympy.physics.control.control_plots import plt
 from torch_geometric.datasets import BitcoinOTC
 from torch_geometric.nn import SignedGCN
+import dataset_loader
 if torch.cuda.is_available():
     device = torch.device('cuda')
 elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
@@ -11,7 +14,7 @@ else:
 
 name = 'BitcoinOTC-1'
 path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', name)
-dataset = BitcoinOTC(path, edge_window_size=1)
+dataset = dataset_loader.BitcoinOTC(path, edge_window_size=1)
 print(dataset[1])
 # dataset = BitcoinOTC(root='Data/BitcoinOTC')
 # Generate dataset.
@@ -62,3 +65,33 @@ with torch.no_grad():
 embedding_save_path = osp.join(embedding_dir, f'soc-sign-bitcoinotc.csv_embeddings.pt')
 torch.save(final_embeddings, embedding_save_path)
 print(f'Embeddings for soc-sign-bitcoinotc.csv saved to {embedding_save_path}')
+
+
+embedding_save_path = f'embedding/{name}_embeddings.pt'
+z = torch.load(embedding_save_path)
+
+Dist_pos = torch.norm(z[test_pos_edge_index[0]] - z[test_pos_edge_index[1]], dim=1)
+Dist_neg = torch.norm(z[test_neg_edge_index[0]] - z[test_neg_edge_index[1]], dim=1)
+
+os.makedirs('distribution', exist_ok=True)
+
+# 绘制正负边的距离分布
+plt.figure(figsize=(10, 6))
+
+# 正边距离分布
+plt.hist(Dist_pos.cpu().numpy(), bins=50, alpha=0.5, label='Positive edges')
+
+# 负边距离分布
+plt.hist(Dist_neg.cpu().numpy(), bins=50, alpha=0.5, label='Negative edges')
+
+# 添加标签和标题
+plt.xlabel('Distance')
+plt.ylabel('Number of edges')
+plt.title(f'Distance Distribution for {name}')
+plt.legend()
+
+# 保存图像
+plt.savefig(f'distribution/{name}_distance_distribution_test.png')
+
+# 显示图像
+plt.show()
