@@ -1,5 +1,7 @@
 import os
 import os.path as osp
+
+import numpy as np
 import torch
 from torch_geometric.nn import SignedGCN
 import pandas as pd
@@ -37,7 +39,6 @@ def main():
     #      'WikiElec.txt', 'WikiRfa.txt'
     # ]
     dataset_files = [
-
         'WikiRfa.txt'
     ]
 
@@ -49,8 +50,6 @@ def main():
 
         pos_edge_index = edge_index[:, edge_attr > 0]
         neg_edge_index = edge_index[:, edge_attr < 0]
-
-
 
         pos_edge_index = pos_edge_index.to(device)
         neg_edge_index = neg_edge_index.to(device)
@@ -75,12 +74,19 @@ def main():
             model.eval()
             with torch.no_grad():
                 z = model(x, train_pos_edge_index, train_neg_edge_index)
-            return model.test(z, test_pos_edge_index, test_neg_edge_index)
+                auc, f1 = model.test(z, test_pos_edge_index, test_neg_edge_index)
+                preds = model.predict(z, test_pos_edge_index, test_neg_edge_index)
+                labels = torch.cat([torch.ones(test_pos_edge_index.size(1)), torch.zeros(test_neg_edge_index.size(1))])
+                acc = (preds == labels.to(device)).sum().item() / labels.size(0)
+            return auc, f1, acc
 
         for epoch in range(101):
             loss = train()
-            auc, f1 = test()
-            print(f'Dataset: {dataset_file}, Epoch: {epoch:03d}, Loss: {loss:.4f}, AUC: {auc:.4f}, F1: {f1:.4f}')
+            # TODO print loss
+
+        # TODO acc
+        auc, f1, acc = test()
+        print(f'Dataset: {dataset_file}, Epoch: {epoch:03d}, Loss: {loss:.4f}, AUC: {auc:.4f}, F1: {f1:.4f}, Acc: {acc:.4f}')
 
         model.eval()
         with torch.no_grad():
@@ -90,9 +96,26 @@ def main():
         torch.save(final_embeddings, embedding_save_path)
         print(f'Embeddings for {dataset_file} saved to {embedding_save_path}')
 
+        return auc, f1, acc
+
+
+seed_list = [1145, 14, 191, 9810, 721]
 
 if __name__ == '__main__':
-    main()
+    res = []
+    for seed in seed_list:
+        torch.manual_seed(seed)
+
+        auc, f1, acc = main()
+
+        res.append((auc, f1, acc))
+
+    # compute avg var
+    res = np.array(res)
+    print("final res")
+    print(res.mean(axis=0))
+    print(res.var(axis=0))
+    print()
 
 #Dataset: Epinions.txt, Epoch: 100, Loss: 0.6277, AUC: 0.8260, F1: 0.9361
 #Dataset: Slashdot.txt, Epoch: 100, Loss: 0.8408, AUC: 0.7592, F1: 0.8305

@@ -6,6 +6,7 @@ from torch_geometric.nn import SignedGCN
 import torch
 from torch import Tensor
 import os
+
 if torch.cuda.is_available():
     device = torch.device('cuda')
 elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
