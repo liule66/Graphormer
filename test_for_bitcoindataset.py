@@ -16,7 +16,7 @@ else:
 # Define the list of datasets
 datasets = ['soc-sign-bitcoinalpha.csv', 'soc-sign-bitcoinotc.csv']
 
-name = 'BitcoinOTC-1'
+name = 'BitcoinOTC'
 path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', name)
 dataset = dataset_loader.BitcoinOTC(path, edge_window_size=1)
 print(dataset[1])
@@ -62,6 +62,7 @@ def discriminate(z: Tensor, pos_neg_edge_index: Tensor, pos_edge_index: Tensor, 
     z = z.to(device)
     pos_edge_index = pos_edge_index.to(device)
     neg_edge_index = neg_edge_index.to(device)
+    pos_neg_edge_index= pos_neg_edge_index.to(device)
     num_nodes = z.size(0)
 
     # Check if files exist and load data
@@ -139,6 +140,7 @@ def discriminate(z: Tensor, pos_neg_edge_index: Tensor, pos_edge_index: Tensor, 
         torch.save(k_avg_neg_distance, k_avg_neg_distance_path)
 
     # Calculate distances between pairs in pos_neg_edge_index
+
     Dist_ij = torch.norm(z[pos_neg_edge_index[0]] - z[pos_neg_edge_index[1]], dim=1)
 
     # print("Dist_ij", Dist_ij)
@@ -164,8 +166,8 @@ def discriminate(z: Tensor, pos_neg_edge_index: Tensor, pos_edge_index: Tensor, 
     for i in range(Dist_ij.size(0)):
         node = pos_neg_edge_index[1, i].item()
         dist = Dist_ij[i]
-        dist_1=fabs(dist - k_avg_pos_distance[node])-a
-        dist_2=fabs(dist - k_avg_neg_distance[node])+b
+        dist_1=fabs(dist - k_avg_pos_distance[node])
+        dist_2=fabs(dist - k_avg_neg_distance[node])
 
         if dist_1< dist_2:
             logits[i] = torch.tensor([1, 0, 0], dtype=torch.float32, device=device)  # Positive edge
@@ -175,7 +177,7 @@ def discriminate(z: Tensor, pos_neg_edge_index: Tensor, pos_edge_index: Tensor, 
     return torch.log_softmax(logits, dim=1)
 
 
-#embedding_save_path = '/home/zyji/PycharmProjects/Graphormr/embedding/embeddings.pt'
+#embedding_save_path = '/home/zyji/PycharmProjects/Graphormr/BitcoinOTC_embeddings.pt/embeddings.pt'
 embedding_save_path = f'embedding/{name}_embeddings.pt'
 
 

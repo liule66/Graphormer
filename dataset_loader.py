@@ -53,6 +53,7 @@ class BitcoinOTC(InMemoryDataset):
     """
 
     url = 'https://snap.stanford.edu/data/soc-sign-bitcoinotc.csv.gz'
+    # url='https://snap.stanford.edu/data/soc-sign-bitcoinalpha.csv.gz'
 
     def __init__(
         self,
@@ -88,6 +89,11 @@ class BitcoinOTC(InMemoryDataset):
 
     def process(self) -> None:
         with open(self.raw_paths[0]) as f:
+            lines = [[x for x in line.split(',')]
+                     for line in f.read().split('\n')[:-1]]
+
+            edge_indices = [[int(line[0]), int(line[1])] for line in lines]
+            edge_index = torch.tensor(edge_indices, dtype=torch.long)
             edge_index = edge_index - edge_index.min()
             edge_index = edge_index.t().contiguous()
             num_nodes = int(edge_index.max()) + 1

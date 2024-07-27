@@ -158,7 +158,7 @@ def discriminate(z: Tensor, pos_neg_edge_index: Tensor, pos_edge_index: Tensor, 
             else:
                 k_avg_neg_distance[i] = float('inf')
 
-        # Save new k-nearest and k-farthest neighbors data       
+        # Save new k-nearest and k-farthest neighbors data
         torch.save(k_pos_neighbors_tensor, k_pos_neighbors_path)
         torch.save(k_neg_neighbors_tensor, k_neg_neighbors_path)
         torch.save(k_avg_pos_distance, k_avg_pos_distance_path)
@@ -202,7 +202,7 @@ def discriminate(z: Tensor, pos_neg_edge_index: Tensor, pos_edge_index: Tensor, 
     return torch.log_softmax(logits, dim=1)
 
 
-#embedding_save_path = '/home/zyji/PycharmProjects/Graphormr/embedding/embeddings.pt'
+#embedding_save_path = '/home/zyji/PycharmProjects/Graphormr/BitcoinOTC_embeddings.pt/embeddings.pt'
 embedding_save_path = f'embedding/{name}_embeddings.pt'
 
 
