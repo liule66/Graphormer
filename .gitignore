@@ -9,3 +9,8 @@ embedding/*
 Graphormr/*
 
 .idea/*
+
+*.iml
+
+data/*
+

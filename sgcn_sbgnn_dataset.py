@@ -37,32 +37,38 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 def main():
-    dataset_dir = 'dataset'
+    dataset_dir = './data/experiments-data'  # Update this to the correct path
     embedding_dir = 'embedding'
     os.makedirs(embedding_dir, exist_ok=True)
 
-    dataset_files = [
-        'Epinions.txt'
-    ]
-    # 'Epinions.txt', 'Slashdot.txt', 'soc-sign-bitcoinalpha.csv', 'soc-sign-bitcoinotc.csv','WikiElec.txt','WikiRfa.txt'
+    categories = ['bonanza', 'house1to10', 'review']
+    dataset_files = []
 
-    for dataset_file in dataset_files:
-        file_path = osp.join(dataset_dir, dataset_file)
-        data = load_data(file_path)
+    for category in categories:
+        for i in range(1, 6):
+            training_file = osp.join(dataset_dir, f'{category}-{i}_training.txt')
+            testing_file = osp.join(dataset_dir, f'{category}-{i}_testing.txt')
+            if osp.exists(training_file) and osp.exists(testing_file):
+                dataset_files.append((training_file, testing_file))
 
-        edge_index, edge_attr = process_edges(data)
+    for train_file, test_file in dataset_files:
+        train_data = load_data(train_file)
+        test_data = load_data(test_file)
 
-        pos_edge_index = edge_index[:, edge_attr > 0]
-        neg_edge_index = edge_index[:, edge_attr < 0]
+        train_edge_index, train_edge_attr = process_edges(train_data)
+        test_edge_index, test_edge_attr = process_edges(test_data)
 
-        pos_edge_index = pos_edge_index.to(device)
-        neg_edge_index = neg_edge_index.to(device)
+        pos_train_edge_index = train_edge_index[:, train_edge_attr > 0]
+        neg_train_edge_index = train_edge_index[:, train_edge_attr < 0]
+
+        pos_train_edge_index = pos_train_edge_index.to(device)
+        neg_train_edge_index = neg_train_edge_index.to(device)
 
         model = SignedGCN(64, 64, num_layers=2, lamb=5).to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
 
-        train_pos_edge_index, test_pos_edge_index = model.split_edges(pos_edge_index)
-        train_neg_edge_index, test_neg_edge_index = model.split_edges(neg_edge_index)
+        train_pos_edge_index, _ = model.split_edges(pos_train_edge_index)
+        train_neg_edge_index, _ = model.split_edges(neg_train_edge_index)
         x = model.create_spectral_features(train_pos_edge_index, train_neg_edge_index)
 
         def train():
@@ -78,8 +84,8 @@ def main():
             model.eval()
             with torch.no_grad():
                 z = model(x, train_pos_edge_index, train_neg_edge_index)
-                pos_p = model.discriminate(z=z, edge_index=test_pos_edge_index)[:, :2].max(dim=1)[1]
-                neg_p = model.discriminate(z=z, edge_index=test_neg_edge_index)[:, :2].max(dim=1)[1]
+                pos_p = model.discriminate(z=z, edge_index=test_edge_index)[:, :2].max(dim=1)[1]
+                neg_p = model.discriminate(z=z, edge_index=test_edge_index)[:, :2].max(dim=1)[1]
                 pred = (1 - torch.cat([pos_p, neg_p])).cpu()
                 y = torch.cat([pred.new_ones((pos_p.size(0))), pred.new_zeros(neg_p.size(0))])
                 pred, y = pred.numpy(), y.numpy()
@@ -91,15 +97,15 @@ def main():
         for epoch in range(101):
             loss = train()
             auc, f1, acc = test()
-        print(f'Dataset: {dataset_file}, Epoch: {epoch:03d}, Loss: {loss:.4f}, AUC: {auc:.4f}, F1: {f1:.4f}, Acc: {acc:.4f}')
+        print(f'Training File: {train_file}, Testing File: {test_file}, Epoch: {epoch:03d}, Loss: {loss:.4f}, AUC: {auc:.4f}, F1: {f1:.4f}, Acc: {acc:.4f}')
 
         model.eval()
         with torch.no_grad():
             final_embeddings = model(x, train_pos_edge_index, train_neg_edge_index)
 
-        embedding_save_path = osp.join(embedding_dir, f'{osp.splitext(dataset_file)[0]}_embeddings.pt')
+        embedding_save_path = osp.join(embedding_dir, f'{osp.splitext(osp.basename(train_file))[0]}_embeddings.pt')
         torch.save(final_embeddings, embedding_save_path)
-        print(f'Embeddings for {dataset_file} saved to {embedding_save_path}')
+        print(f'Embeddings for {train_file} saved to {embedding_save_path}')
 
         return auc, f1, acc
 

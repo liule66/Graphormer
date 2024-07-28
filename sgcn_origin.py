@@ -1,5 +1,7 @@
 import os
 import os.path as osp
+
+import numpy as np
 import torch
 from sympy.physics.control.control_plots import plt
 from torch_geometric.datasets import BitcoinOTC
@@ -51,10 +53,10 @@ def main():
         with torch.no_grad():
             z = model(x, train_pos_edge_index, train_neg_edge_index)
             auc, f1 = model.test(z, test_pos_edge_index, test_neg_edge_index)
-            preds = model.predict(z, test_pos_edge_index, test_neg_edge_index)
-            labels = torch.cat([torch.ones(test_pos_edge_index.size(1)), torch.zeros(test_neg_edge_index.size(1))])
-            acc = (preds == labels.to(device)).sum().item() / labels.size(0)
-        return auc, f1, acc
+            # preds = model.predict(z, test_pos_edge_index, test_neg_edge_index)
+            # labels = torch.cat([torch.ones(test_pos_edge_index.size(1)), torch.zeros(test_neg_edge_index.size(1))])
+            # acc = (preds == labels.to(device)).sum().item() / labels.size(0)
+        return auc, f1
 
     embedding_dir = 'embedding'
     os.makedirs(embedding_dir, exist_ok=True)
@@ -101,7 +103,7 @@ def main():
     # 显示图像
     plt.show()
 
-    return auc, f1, acc
+    return auc, f1
 
 seed_list = [1145, 14, 191, 9810, 721]
 
@@ -110,9 +112,9 @@ if __name__ == '__main__':
     for seed in seed_list:
         torch.manual_seed(seed)
 
-        auc, f1, acc = main()
+        auc, f1= main()
 
-        res.append((auc, f1, acc))
+        res.append((auc, f1))
 
     # compute avg var
     res = np.array(res)
