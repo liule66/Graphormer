@@ -8,7 +8,7 @@ from sklearn.metrics import f1_score, roc_auc_score, accuracy_score
 
 import sys
 sys.path.append("..")
-from ShareMethod import DataLoad
+from baseline.tasks.ShareMethod import DataLoad
 
 # cuda / mps / cpu
 if torch.cuda.is_available():
@@ -209,7 +209,7 @@ def train():
 
     x_concat = None
 
-    for epoch in range(100):
+    for epoch in range(200):
 
         x = model.dimension_reduction()
 

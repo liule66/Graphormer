@@ -1,17 +1,21 @@
+import os
+
 import numpy as np
+import pandas as pd
 import torch
-from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn.conv import GATConv, GCNConv
+from torch_geometric.nn.conv import GCNConv
 from torch_geometric.utils import negative_sampling
 from torch_geometric import seed_everything
 from sklearn.metrics import f1_score, roc_auc_score, accuracy_score
+from torch_geometric.nn import SignedGCN
 import argparse
+import os.path as osp
 
 import sys
 sys.path.append("..")
-from ShareMethod import DataLoad
+from baseline.tasks.ShareMethod import DataLoad
 
 # cuda / mps / cpu
 if torch.cuda.is_available():
@@ -20,7 +24,55 @@ elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
     device = torch.device("mps")
 else:
     device = torch.device("cpu")
+def load_data(file_path):
+    if file_path.endswith('.txt'):
+        data = pd.read_csv(file_path, sep='\t', header=None)
+    elif file_path.endswith('.csv'):
+        data = pd.read_csv(file_path)
+    else:
+        raise ValueError("Unsupported file format")
+    return data
 
+def process_edges(data):
+    edge_index = torch.tensor(data.iloc[:, :2].values.T, dtype=torch.long)
+    edge_attr = torch.tensor(data.iloc[:, 2].values, dtype=torch.float)
+    return edge_index, edge_attr
+
+def set_seed(seed):
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+dataset_dir = 'dataset'
+embedding_dir = 'embedding'
+os.makedirs(embedding_dir, exist_ok=True)
+
+dataset_files = [
+    'Epinions.txt'
+]
+# 'Epinions.txt', 'Slashdot.txt', 'soc-sign-bitcoinalpha.csv', 'soc-sign-bitcoinotc.csv','WikiElec.txt','WikiRfa.txt'
+
+for dataset_file in dataset_files:
+    file_path = osp.join(dataset_dir, dataset_file)
+    data = load_data(file_path)
+
+    edge_index, edge_attr = process_edges(data)
+
+    pos_edge_index = edge_index[:, edge_attr > 0]
+    neg_edge_index = edge_index[:, edge_attr < 0]
+
+    pos_edge_index = pos_edge_index.to(device)
+    neg_edge_index = neg_edge_index.to(device)
+
+    model = SignedGCN(64, 64, num_layers=2, lamb=5).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
+
+    train_pos_edge_index, test_pos_edge_index = model.split_edges(pos_edge_index)
+    train_neg_edge_index, test_neg_edge_index = model.split_edges(neg_edge_index)
+    x = model.create_spectral_features(train_pos_edge_index, train_neg_edge_index)
 
 class Predictor(nn.Module):
     
@@ -231,81 +283,78 @@ args.tau = 0.05
 args.aug_ratio = 0.1
 
 
-for percent in percent_list:
 
-    print(f"{percent} Start!")
+res = []
 
-    res = []
+for times in range(5):
 
-    for times in range(5):
+    seed = seed_list[times]
 
-        seed = seed_list[times]
-
-        torch.random.manual_seed(seed)
-        seed_everything(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed(seed)
-
-        dataloader = DataLoad(percent, times+1)
-        train_pos_edge_index, train_neg_edge_index, test_pos_edge_index, test_neg_edge_index = dataloader.load_data_format()
-        N = torch.max(train_pos_edge_index).item()
-        x = dataloader.create_feature(N)
-        args.x = x
-
-        model = MySGCL(args).to(device)
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-
-        for epoch in range(200):
-
-            x = model.dimension_reduction()
-
-            x_concat, *other_x = model(x, N, train_pos_edge_index, train_neg_edge_index)
-
-            # loss
-            contrastive_loss = model.compute_contrastive_loss(x_concat, *other_x)
-
-            # train predict
-            src_id = torch.concat((train_pos_edge_index[0], train_neg_edge_index[0])).to(device)
-            dst_id = torch.concat((train_pos_edge_index[1], train_neg_edge_index[1])).to(device)
-
-            y_train = torch.concat((torch.ones(train_pos_edge_index.shape[1]), torch.zeros(train_neg_edge_index.shape[1]))).to(device)
-
-            score = model.predict(model.x, src_id, dst_id)
-
-            label_loss = model.compute_label_loss(score, y_train)
-
-            loss = args.beta * contrastive_loss + label_loss
-
-            print(f"\repoch {epoch+1}: {loss}", end="", flush=True)
-
-            loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
-
-        # test
-        print()
-        model.eval()
-
-        with torch.no_grad():
-            x_concat, *other_x = model(x, N, train_pos_edge_index, train_neg_edge_index)
-
-            # test predict
-            test_src_id = torch.concat((test_pos_edge_index[0], test_neg_edge_index[0])).to(device)
-            test_dst_id = torch.concat((test_pos_edge_index[1], test_neg_edge_index[1])).to(device)
-
-            y_test = torch.concat((torch.ones(test_pos_edge_index.shape[1]), torch.zeros(test_neg_edge_index.shape[1]))).to(device)
-
-            score_test = model.predict(model.x, test_src_id, test_dst_id).to(device)
-
-            acc, auc, f1, micro_f1, macro_f1 = model.test(score_test, y_test)
-
-            print(f"\nacc {acc:.6f}; auc {auc:.6f}; f1 {f1:.6f}; micro_f1 {micro_f1:.6f}; macro_f1 {macro_f1:.6f}")
+    torch.random.manual_seed(seed)
+    seed_everything(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
 
 
-        res.append((acc, auc, f1, micro_f1, macro_f1))
-        print(res[times])
 
-    res = np.array(res)
-    print(res.mean(axis=0))
-    print(res.var(axis=0))
+    N = torch.max(train_pos_edge_index).item()
+    args.x = x
+
+    model = MySGCL(args).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    for epoch in range(200):
+
+        x = model.dimension_reduction()
+
+        x_concat, *other_x = model(x, N, train_pos_edge_index, train_neg_edge_index)
+
+        # loss
+        contrastive_loss = model.compute_contrastive_loss(x_concat, *other_x)
+
+        # train predict
+        src_id = torch.concat((train_pos_edge_index[0], train_neg_edge_index[0])).to(device)
+        dst_id = torch.concat((train_pos_edge_index[1], train_neg_edge_index[1])).to(device)
+
+        y_train = torch.concat((torch.ones(train_pos_edge_index.shape[1]), torch.zeros(train_neg_edge_index.shape[1]))).to(device)
+
+        score = model.predict(model.x, src_id, dst_id)
+
+        label_loss = model.compute_label_loss(score, y_train)
+
+        loss = args.beta * contrastive_loss + label_loss
+
+        print(f"\repoch {epoch+1}: {loss}", end="", flush=True)
+
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+
+    # test
+    print()
+    model.eval()
+
+    with torch.no_grad():
+        x_concat, *other_x = model(x, N, train_pos_edge_index, train_neg_edge_index)
+
+        # test predict
+        test_src_id = torch.concat((test_pos_edge_index[0], test_neg_edge_index[0])).to(device)
+        test_dst_id = torch.concat((test_pos_edge_index[1], test_neg_edge_index[1])).to(device)
+
+        y_test = torch.concat((torch.ones(test_pos_edge_index.shape[1]), torch.zeros(test_neg_edge_index.shape[1]))).to(device)
+
+        score_test = model.predict(model.x, test_src_id, test_dst_id).to(device)
+
+        acc, auc, f1, micro_f1, macro_f1 = model.test(score_test, y_test)
+
+        print(f"\nacc {acc:.6f}; auc {auc:.6f}; f1 {f1:.6f}; micro_f1 {micro_f1:.6f}; macro_f1 {macro_f1:.6f}")
+
+
+    res.append((acc, auc, f1, micro_f1, macro_f1))
+    print(res[times])
+
+res = np.array(res)
+print(res.mean(axis=0))
+print(res.var(axis=0))
+print(res)
 

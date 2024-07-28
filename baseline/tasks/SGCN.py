@@ -1,5 +1,5 @@
 from typing import Tuple
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from torch import Tensor
 import torch.nn as nn
 import torch
@@ -9,7 +9,7 @@ from torch_geometric import seed_everything
 
 import sys
 sys.path.append("..")
-from ShareMethod import DataLoad
+from baseline.tasks.ShareMethod import DataLoad
 
 # cuda / mps / cpu
 if torch.cuda.is_available():
@@ -138,7 +138,7 @@ for percent in percent_list:
         best_f1 = 0
         best_epoch = 0
 
-        for epoch in range(100):
+        for epoch in range(200):
             x = model.dimension_reduction()
             loss = train(model, optimizer, x, train_pos_edge_index, train_neg_edge_index)
             # print(f'Epoch: {epoch:03d}, Loss: {loss:.4f}')
